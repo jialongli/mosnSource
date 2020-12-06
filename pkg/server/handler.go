@@ -388,6 +388,9 @@ func newActiveListener(listener types.Listener, lc *v2.Listener, accessLoggers [
 	return al, nil
 }
 
+/**
+[ljl]
+*/
 func (al *activeListener) GoStart(lctx context.Context) {
 	utils.GoWithRecover(func() {
 		al.listener.Start(lctx, false)
@@ -399,6 +402,7 @@ func (al *activeListener) GoStart(lctx context.Context) {
 
 // ListenerEventListener
 func (al *activeListener) OnAccept(rawc net.Conn, useOriginalDst bool, oriRemoteAddr net.Addr, ch chan api.Connection, buf []byte) {
+	fmt.Println("[===ljl===][handler.go--OnAccept]接受到连接了")
 	var rawf *os.File
 
 	// only store fd and tls conn handshake in final working listener
@@ -727,6 +731,7 @@ func (ac *activeConnection) OnEvent(event api.ConnectionEvent) {
 }
 
 func sendInheritListeners() (net.Conn, error) {
+	//====[ljl]1.获取所有当前监听的listener的文件描述符.注意,监听socket和已连接socket可不一样
 	lf := ListListenersFile()
 	if lf == nil {
 		return nil, errors.New("ListListenersFile() error")
@@ -783,6 +788,12 @@ func sendInheritListeners() (net.Conn, error) {
 	return uc, nil
 }
 
+/**
+[ljl]获取继承的监听fd,返回的参数
+1.监听的端口列表
+2.当前与old mson连接
+3.异常
+*/
 func GetInheritListeners() ([]net.Listener, net.Conn, error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -796,6 +807,7 @@ func GetInheritListeners() ([]net.Listener, net.Conn, error) {
 
 	syscall.Unlink(types.TransferListenDomainSocket)
 
+	//----uds怎么操作呢? 和tcp的socket是类似的 1.listen(设置了超时 10s) 2.accept 3.读取数据 readMsgUnix
 	l, err := net.Listen("unix", types.TransferListenDomainSocket)
 	if err != nil {
 		log.StartLogger.Errorf("[server] InheritListeners net listen error: %v", err)
@@ -829,6 +841,7 @@ func GetInheritListeners() ([]net.Listener, net.Conn, error) {
 		log.StartLogger.Errorf("[server] expected 1 SocketControlMessage; got scms = %#v", scms)
 		return nil, nil, err
 	}
+	//-- 把数据转化为fd---
 	gotFds, err := unix.ParseUnixRights(&scms[0])
 	if err != nil {
 		log.StartLogger.Errorf("[server] unix.ParseUnixRights: %v", err)

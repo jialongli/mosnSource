@@ -19,6 +19,7 @@ package network
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"os"
 	"runtime/debug"
@@ -95,6 +96,7 @@ func (l *listener) Addr() net.Addr {
 	return l.localAddress
 }
 
+//[ljl]开启监听了啦
 func (l *listener) Start(lctx context.Context, restart bool) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -103,6 +105,7 @@ func (l *listener) Start(lctx context.Context, restart bool) {
 	}()
 
 	if l.bindToPort {
+		//[ljl??]这里要干啥????
 		ignore := func() bool {
 			l.mutex.Lock()
 			defer l.mutex.Unlock()
@@ -140,6 +143,7 @@ func (l *listener) Start(lctx context.Context, restart bool) {
 			return
 		}
 
+		//[ljl]这里开始死循环 接受连接,当接收到后,开启一个协程去处理
 		for {
 			if err := l.accept(lctx); err != nil {
 				if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
@@ -231,6 +235,7 @@ func (l *listener) listen(lctx context.Context) error {
 
 func (l *listener) accept(lctx context.Context) error {
 	rawc, err := l.rawl.Accept()
+	fmt.Println("[===ljl===][listerner.go--accept]监听到新连接,我要去处理了")
 
 	if err != nil {
 		return err

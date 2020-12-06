@@ -26,7 +26,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	v2 "mosn.io/mosn/pkg/config/v2"
+	"mosn.io/mosn/pkg/config/v2"
 	"mosn.io/mosn/pkg/log"
 	"mosn.io/mosn/pkg/network"
 	"mosn.io/mosn/pkg/types"
@@ -37,6 +37,7 @@ func init() {
 	RegisterClusterType(v2.STRICT_DNS_CLUSTER, newStrictDnsCluster)
 }
 
+//=====0.13.0版本支持的的新功能
 type strictDnsCluster struct {
 	*simpleCluster
 	dnsResolver     *network.DnsResolver

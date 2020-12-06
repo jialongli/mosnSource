@@ -105,10 +105,13 @@ func NewClusterManagerSingleton(clusters []v2.Cluster, clusterMap map[string][]v
 	return clusterManagerInstance
 }
 
+/**
+[ljl]更新cluster配置
+*/
 // AddOrUpdatePrimaryCluster will always create a new cluster without the hosts config
 // if the same name cluster is already exists, we will keep the exists hosts, and use rcu to update it.
 func (cm *clusterManager) AddOrUpdatePrimaryCluster(cluster v2.Cluster) error {
-	// new cluster
+	// new cluster   [ljl]根据cluster配置,转换为cluster对象
 	newCluster := NewCluster(cluster)
 	if newCluster == nil || reflect.ValueOf(newCluster).IsNil() {
 		log.DefaultLogger.Errorf("[cluster] [cluster manager] [AddOrUpdatePrimaryCluster] update cluster %s failed", cluster.Name)

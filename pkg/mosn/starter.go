@@ -23,7 +23,7 @@ import (
 
 	admin "mosn.io/mosn/pkg/admin/server"
 	"mosn.io/mosn/pkg/admin/store"
-	v2 "mosn.io/mosn/pkg/config/v2"
+	"mosn.io/mosn/pkg/config/v2"
 	"mosn.io/mosn/pkg/configmanager"
 	"mosn.io/mosn/pkg/featuregate"
 	"mosn.io/mosn/pkg/log"
@@ -67,24 +67,29 @@ func NewMosn(c *v2.MOSNConfig) *Mosn {
 	store.SetMosnConfig(c)
 
 	//get inherit fds
+	//--------1.重要,如果是第一次启动,那么返回的是nil,nil,nil  如果需要无损升级,那么返回 继承的listener,监听的socket连接,异常
 	inheritListeners, listenSockConn, err := server.GetInheritListeners()
 	if err != nil {
 		log.StartLogger.Fatalf("[mosn] [NewMosn] getInheritListeners failed, exit")
 	}
 	if listenSockConn != nil {
+		//2.1 如果new mosn与old mosn有连接,那么说明是平滑启动,需要继承老进程的listerner
 		log.StartLogger.Infof("[mosn] [NewMosn] active reconfiguring")
 		// set Mosn Active_Reconfiguring
 		store.SetMosnState(store.Active_Reconfiguring)
 		// parse MOSNConfig again
 		c = configmanager.Load(configmanager.GetConfigPath())
 	} else {
+		//2.2 初始话服务
 		log.StartLogger.Infof("[mosn] [NewMosn] new mosn created")
 		// start init services
+		//2.3 监听服务端口了~~~错了,并没有监听端口,因为进去service是nil
 		if err := store.StartService(nil); err != nil {
 			log.StartLogger.Fatalf("[mosn] [NewMosn] start service failed: %v,  exit", err)
 		}
 	}
 
+	//===[ljl]3.初始化 指标,不重要
 	initializeMetrics(c.Metrics)
 
 	m := &Mosn{
@@ -95,6 +100,7 @@ func NewMosn(c *v2.MOSNConfig) *Mosn {
 	}
 	mode := c.Mode()
 
+	//4.如果是xds模式,那么初始化mosnConfig
 	if mode == v2.Xds {
 		c.Servers = []v2.ServerConfig{
 			{
@@ -108,6 +114,7 @@ func NewMosn(c *v2.MOSNConfig) *Mosn {
 		}
 	}
 
+	//5.看下service的个数,如果是0,那么监听个寂寞.如果大于1,也扯淡,mosn不支持
 	srvNum := len(c.Servers)
 
 	if srvNum == 0 {
@@ -122,12 +129,15 @@ func NewMosn(c *v2.MOSNConfig) *Mosn {
 	// parse cluster all in one
 	clusters, clusterMap := configmanager.ParseClusterConfig(c.ClusterManager.Clusters)
 	// create cluster manager
+	//6.1如果是从pilot获取xds,
 	if mode == v2.Xds {
 		m.clustermanager = cluster.NewClusterManagerSingleton(nil, nil)
 	} else {
+		//6.2 如果是静态配置的,那么解析静态配置
 		m.clustermanager = cluster.NewClusterManagerSingleton(clusters, clusterMap)
 	}
 
+	//7.初始胡routerManager
 	// initialize the routerManager
 	m.routerManager = router.NewRouterManager()
 
@@ -265,7 +275,7 @@ func (m *Mosn) Start() {
 		//	 m.servers[0].Start()
 		// },
 		srv := srv
-
+		//[ljl!!]这里才是启动服务
 		utils.GoWithRecover(func() {
 			srv.Start()
 		}, nil)
@@ -294,7 +304,9 @@ func (m *Mosn) Close() {
 // step2. Start Mosn
 func Start(c *v2.MOSNConfig) {
 	//log.StartLogger.Infof("[mosn] [start] start by config : %+v", c)
+	//[ljl]1.初始化配置,fd迁移.生成一个mosn类,包装了server
 	Mosn := NewMosn(c)
+	//[ljl]2.启动mosn
 	Mosn.Start()
 	Mosn.wg.Wait()
 }

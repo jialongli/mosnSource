@@ -80,6 +80,9 @@ func AddService(s *http.Server, name string, init func(), exit func()) {
 	log.DefaultLogger.Infof("[admin store] [add service] add server %s", name)
 }
 
+/**
+就做了一件事,遍历services,然后监听端口,开启服务
+*/
 func StartService(inheritListeners []net.Listener) error {
 	for _, srv := range services {
 		if srv.start {
@@ -90,6 +93,7 @@ func StartService(inheritListeners []net.Listener) error {
 		var saddr *net.TCPAddr
 
 		s := srv
+		//=====[ljl]1.创建了一个tcpAddr
 		saddr, err = net.ResolveTCPAddr("tcp", s.Addr)
 		if err != nil {
 			log.StartLogger.Fatalf("[admin store] [start service] [inheritListener] not valid: %v", s.Addr)
@@ -111,7 +115,7 @@ func StartService(inheritListeners []net.Listener) error {
 				break
 			}
 		}
-
+		//====2.监听一个端口
 		if ln == nil {
 			ln, err = net.Listen("tcp", s.Addr)
 			if err != nil {
@@ -120,15 +124,18 @@ func StartService(inheritListeners []net.Listener) error {
 		}
 		listeners = append(listeners, ln)
 
+		//===3.如果服务有init方法,这时候要初始化
 		if s.init != nil {
 			s.init()
 		}
+		//4.设置服务的状态为启动啦
 		s.start = true
 		utils.GoWithRecover(func() {
 			// set metrics
 			metrics.AddListenerAddr(s.Addr)
 			log.StartLogger.Infof("[admin store] [start service] start service %s on %s", s.name, ln.Addr().String())
 
+			//===!!!!5.这里开始监听端口啦,因为s是service类型,组合了http.service
 			err := s.Serve(ln)
 			if err != nil {
 				log.StartLogger.Warnf("[admin store] [start service] start serve failed : %s %s %s", s.name, ln.Addr().String(), err.Error())

@@ -143,6 +143,9 @@ func (p *workerPool) ScheduleAuto(task func()) {
 		return
 	default:
 	}
+	//1.先往task channel放,这是无缓存channel
+	//2.再往队列里放,放进去一个,然后开启一个协程,去产生一个任务
+	//3.如果队列里都放不进去,直接开启一个协程执行此任务
 	select {
 	case p.work <- task:
 	case p.sem <- struct{}{}:
@@ -158,6 +161,9 @@ func (p *workerPool) ScheduleAuto(task func()) {
 	}
 }
 
+/**
+产生一个任务.死循环
+*/
 func (p *workerPool) spawnWorker(task func()) {
 	defer func() {
 		if r := recover(); r != nil {

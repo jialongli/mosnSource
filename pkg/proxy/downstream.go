@@ -30,7 +30,7 @@ import (
 
 	"mosn.io/api"
 	mbuffer "mosn.io/mosn/pkg/buffer"
-	v2 "mosn.io/mosn/pkg/config/v2"
+	"mosn.io/mosn/pkg/config/v2"
 	mosnctx "mosn.io/mosn/pkg/context"
 	"mosn.io/mosn/pkg/log"
 	"mosn.io/mosn/pkg/protocol"
@@ -343,6 +343,7 @@ func (s *downStream) OnDestroyStream() {}
 
 // types.StreamReceiveListener
 func (s *downStream) OnReceive(ctx context.Context, headers types.HeaderMap, data types.IoBuffer, trailers types.HeaderMap) {
+	fmt.Println("[downstream.go===downstream.OnReceive()]接受到请求数据后,开始处理这个请求")
 	s.downstreamReqHeaders = headers
 	s.context = mosnctx.WithValue(s.context, types.ContextKeyDownStreamHeaders, headers)
 	s.downstreamReqDataBuf = data
@@ -353,6 +354,7 @@ func (s *downStream) OnReceive(ctx context.Context, headers types.HeaderMap, dat
 	}
 
 	id := s.ID
+	fmt.Println("[downstream.go===pool.ScheduleAuto()]把任务扔到处理池")
 	// goroutine for proxy
 	pool.ScheduleAuto(func() {
 		defer func() {
@@ -365,11 +367,11 @@ func (s *downStream) OnReceive(ctx context.Context, headers types.HeaderMap, dat
 				}
 			}
 		}()
-
+		fmt.Println("[downstream.go===pool.ScheduleAuto()]任务具体怎么处理呢?1.应该是最多重试10次")
 		phase := types.InitPhase
 		for i := 0; i < 10; i++ {
 			s.cleanNotify()
-
+			fmt.Println("[downstream.go===pool.ScheduleAuto()]核心处理,s.receive(id,phase)")
 			phase = s.receive(ctx, id, phase)
 			switch phase {
 			case types.End:
@@ -390,14 +392,16 @@ func (s *downStream) printPhaseInfo(phaseId types.Phase, proxyId uint32) {
 }
 
 func (s *downStream) receive(ctx context.Context, id uint32, phase types.Phase) types.Phase {
+	fmt.Println("[downstream.go===receive()]分为n个步骤,从0-16,依次执行")
 	for i := 0; i <= int(types.End-types.InitPhase); i++ {
 		switch phase {
 		// init phase
 		case types.InitPhase:
 			phase++
-
+			fmt.Println("[downstream.go===receive()]分为n个步骤,第0步,开始")
 		// downstream filter before route
 		case types.DownFilter:
+			fmt.Println("[downstream.go===receive()]分为n个步骤,第0步,开始")
 			if log.Proxy.GetLogLevel() >= log.DEBUG {
 				s.printPhaseInfo(types.DownFilter, id)
 			}
@@ -413,6 +417,7 @@ func (s *downStream) receive(ctx context.Context, id uint32, phase types.Phase) 
 			if log.Proxy.GetLogLevel() >= log.DEBUG {
 				s.printPhaseInfo(types.MatchRoute, id)
 			}
+			fmt.Println("[downstream.go===receive()]分为n个步骤,第2步,MatchRoute")
 			s.matchRoute()
 			if p, err := s.processError(id); err != nil {
 				return p
@@ -421,6 +426,7 @@ func (s *downStream) receive(ctx context.Context, id uint32, phase types.Phase) 
 
 		// downstream filter after route
 		case types.DownFilterAfterRoute:
+			fmt.Println("[downstream.go===receive()]分为n个步骤,第3步,DownFilterAfterRoute")
 			if log.Proxy.GetLogLevel() >= log.DEBUG {
 				s.printPhaseInfo(types.DownFilterAfterRoute, id)
 			}
@@ -434,6 +440,7 @@ func (s *downStream) receive(ctx context.Context, id uint32, phase types.Phase) 
 		// TODO support retry
 		// downstream choose host
 		case types.ChooseHost:
+			fmt.Println("[downstream.go===receive()]分为n个步骤,第4步,ChooseHost,选择上游服务的节点啦")
 			if log.Proxy.GetLogLevel() >= log.DEBUG {
 				s.printPhaseInfo(types.ChooseHost, id)
 			}
@@ -447,6 +454,8 @@ func (s *downStream) receive(ctx context.Context, id uint32, phase types.Phase) 
 
 		// downstream filter after choose host
 		case types.DownFilterAfterChooseHost:
+			fmt.Println("[downstream.go===receive()]分为n个步骤,第5步,DownFilterAfterChooseHost,选择上游服务的节点后还要进行filter")
+
 			if log.Proxy.GetLogLevel() >= log.DEBUG {
 				s.printPhaseInfo(types.DownFilterAfterChooseHost, id)
 			}
@@ -459,6 +468,7 @@ func (s *downStream) receive(ctx context.Context, id uint32, phase types.Phase) 
 
 		// downstream receive header
 		case types.DownRecvHeader:
+			fmt.Println("[downstream.go===receive()]分为n个步骤,第6步,DownFilterAfterChooseHost,选择上游服务的节点后还要进行filter")
 			if s.downstreamReqHeaders != nil {
 				if log.Proxy.GetLogLevel() >= log.DEBUG {
 					s.printPhaseInfo(types.DownRecvHeader, id)
@@ -762,6 +772,7 @@ func (s *downStream) receiveHeaders(endStream bool) {
 	//Modify request headers
 	s.route.RouteRule().FinalizeRequestHeaders(s.downstreamReqHeaders, s.requestInfo)
 	//Call upstream's append header method to build upstream's request
+	fmt.Println("[downstream.go===receiveHeaders()]receiveHeaders  ****核心逻辑******")
 	s.upstreamRequest.appendHeaders(endStream)
 
 	if endStream {
@@ -1444,9 +1455,11 @@ func (s *downStream) waitNotify(id uint32) (phase types.Phase, err error) {
 	if log.Proxy.GetLogLevel() >= log.DEBUG {
 		log.Proxy.Debugf(s.context, "[proxy] [downstream] waitNotify begin %p, proxyId = %d", s, s.ID)
 	}
+	fmt.Println("[downStream]downStream.waitNotify,开始等待处理结果")
 	select {
 	case <-s.notify:
 	}
+	fmt.Println("[downStream]downStream.waitNotify,等到了处理结果")
 	return s.processError(id)
 }
 

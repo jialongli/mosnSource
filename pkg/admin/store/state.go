@@ -30,6 +30,9 @@ const (
 	Init State = iota
 	Running
 	Active_Reconfiguring
+	/**
+	被动....
+	*/
 	Passive_Reconfiguring
 )
 

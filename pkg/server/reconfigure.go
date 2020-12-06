@@ -58,7 +58,11 @@ func startNewMosn() error {
 	return nil
 }
 
+/**
+==========
+*/
 func reconfigure(start bool) {
+	//======[ljl]如果是启动,调用这个逻辑 ,否则那肯定是有新mosn启动,我监听到uds的请求了.
 	if start {
 		startNewMosn()
 		return
@@ -79,6 +83,7 @@ func reconfigure(start bool) {
 	var err error
 	var n int
 	var buf [1]byte
+	//====[ljl]重要逻辑,发送要监听的文件描述符==========
 	if listenSockConn, err = sendInheritListeners(); err != nil {
 		return
 	}
@@ -121,6 +126,7 @@ func ReconfigureHandler() {
 
 	syscall.Unlink(types.ReconfigureDomainSocket)
 
+	//=====1.mosn启动后,来监听reconfig这个uds
 	l, err := net.Listen("unix", types.ReconfigureDomainSocket)
 	if err != nil {
 		log.StartLogger.Errorf("[server] [reconfigure] reconfigureHandler net listen error: %v", err)
@@ -132,6 +138,7 @@ func ReconfigureHandler() {
 
 	ul := l.(*net.UnixListener)
 	for {
+		//=======2.当accept到连接后.
 		uc, err := ul.AcceptUnix()
 		if err != nil {
 			log.DefaultLogger.Errorf("[server] [reconfigure] reconfigureHandler Accept error :%v", err)
@@ -139,13 +146,16 @@ func ReconfigureHandler() {
 		}
 		log.DefaultLogger.Infof("[server] [reconfigure] reconfigureHandler Accept")
 
+		//3.写入'0'数据作为回应
 		_, err = uc.Write([]byte{0})
 		if err != nil {
 			log.DefaultLogger.Errorf("[server] [reconfigure] reconfigureHandler %v", err)
 			continue
 		}
+		//4.可以关闭连接了
 		uc.Close()
 
+		//5.
 		reconfigure(false)
 	}
 }
@@ -154,6 +164,9 @@ func StopReconfigureHandler() {
 	syscall.Unlink(types.ReconfigureDomainSocket)
 }
 
+/**
+[ljl]判断当前机器是否已经有一个 mosn进程了.如果有的话,那么需要进行fd迁移,如果没有,那么就是第一次启动,return false
+*/
 func isReconfigure() bool {
 	var unixConn net.Conn
 	var err error

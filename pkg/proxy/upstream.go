@@ -20,6 +20,7 @@ package proxy
 import (
 	"container/list"
 	"context"
+	"fmt"
 	"time"
 
 	"sync/atomic"
@@ -118,7 +119,7 @@ func (r *upstreamRequest) OnReceive(ctx context.Context, headers types.HeaderMap
 	if log.Proxy.GetLogLevel() >= log.DEBUG {
 		log.Proxy.Debugf(r.downStream.context, "[proxy] [upstream] OnReceive headers: %+v, data: %+v, trailers: %+v", headers, data, trailers)
 	}
-
+	fmt.Println("[upstream.go====upstreamRequest.OnReceive]发送通知")
 	r.downStream.sendNotify()
 }
 
@@ -153,8 +154,10 @@ func (r *upstreamRequest) OnDecodeError(context context.Context, err error, head
 	r.OnResetStream(types.StreamLocalReset)
 }
 
+//[ljl核心] 这是clientStream向server发送请求
 // ~~~ send request wrapper
 func (r *upstreamRequest) appendHeaders(endStream bool) {
+	fmt.Println("[upstream.go===appendHeaders()]appendHeaders  ****核心逻辑******,创建一个clientStream,并且发送数据到上游服务节点")
 	if r.downStream.processDone() {
 		return
 	}
@@ -166,6 +169,7 @@ func (r *upstreamRequest) appendHeaders(endStream bool) {
 	if r.downStream.oneway {
 		r.connPool.NewStream(r.downStream.context, nil, r)
 	} else {
+		//创建一个clientStream.用于发送请求到
 		r.connPool.NewStream(r.downStream.context, r, r)
 	}
 }
@@ -269,6 +273,7 @@ func (r *upstreamRequest) OnFailure(reason types.PoolFailureReason, host types.H
 }
 
 func (r *upstreamRequest) OnReady(sender types.StreamSender, host types.Host) {
+
 	// debug message for upstream
 	if log.Proxy.GetLogLevel() >= log.DEBUG {
 		log.Proxy.Debugf(r.downStream.context, "[proxy] [upstream] connPool ready, proxyId = %v, host = %s", r.downStream.ID, host.AddressString())
@@ -291,6 +296,7 @@ func (r *upstreamRequest) OnReady(sender types.StreamSender, host types.Host) {
 	}
 
 	endStream := r.sendComplete && !r.dataSent && !r.trailerSent
+	fmt.Println("[upstream.go===OnReady()]哈哈,既然创建好了clientStream,那我赶紧去调用了.")
 	r.requestSender.AppendHeaders(r.downStream.context, r.convertHeader(r.downStream.downstreamReqHeaders), endStream)
 
 	// todo: check if we get a reset on send headers

@@ -46,6 +46,9 @@ var (
 
 type Phase int
 
+/**
+golang的语法,iota是0,之后每出现一行,都+1
+*/
 const (
 	InitPhase Phase = iota
 	DownFilter

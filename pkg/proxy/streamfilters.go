@@ -18,6 +18,8 @@
 package proxy
 
 import (
+	"fmt"
+	"strconv"
 	"sync/atomic"
 
 	"mosn.io/api"
@@ -41,13 +43,15 @@ func (s *downStream) runAppendFilters(p types.Phase, headers types.HeaderMap, da
 
 // run stream receive filters
 func (s *downStream) runReceiveFilters(p types.Phase, headers types.HeaderMap, data types.IoBuffer, trailers types.HeaderMap) bool {
+	fmt.Println("[downstream.go===runReceiveFilters]共有" + strconv.Itoa(len(s.receiverFilters)) + "个filter,依次进行过滤")
 	for ; s.receiverFiltersIndex < len(s.receiverFilters); s.receiverFiltersIndex++ {
 		f := s.receiverFilters[s.receiverFiltersIndex]
 		if f.p != p {
+			fmt.Println("[downstream.go===runReceiveFilters]不匹配")
 			continue
 		}
-
 		status := f.filter.OnReceive(s.context, headers, data, trailers)
+		fmt.Println("[downstream.go===执行完第" + strconv.Itoa(s.receiverFiltersIndex) + "个filter")
 		switch status {
 		case api.StreamFilterStop:
 			return true
@@ -96,6 +100,7 @@ func (f *activeStreamFilter) RequestInfo() types.RequestInfo {
 // types.StreamReceiverFilter
 // types.StreamReceiverFilterHandler
 type activeStreamReceiverFilter struct {
+	//[ljl]====这个是说这个filter,工作在第几步骤的
 	p types.Phase
 	activeStreamFilter
 	filter api.StreamReceiverFilter

@@ -31,6 +31,7 @@ var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 // apiHandleFuncStore stores the supported admin api
 // can register more admin api
+//=========对内暴露的管理接口===============
 var apiHandleFuncStore map[string]func(http.ResponseWriter, *http.Request)
 
 func RegisterAdminHandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request)) {

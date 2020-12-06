@@ -33,6 +33,7 @@ import (
 )
 
 func init() {
+	//捕捉信号
 	catchSignals()
 
 	onProcessExit = append(onProcessExit, func() {

@@ -21,6 +21,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -32,7 +33,7 @@ import (
 	"github.com/valyala/fasthttp"
 	"mosn.io/api"
 	mbuffer "mosn.io/mosn/pkg/buffer"
-	v2 "mosn.io/mosn/pkg/config/v2"
+	"mosn.io/mosn/pkg/config/v2"
 	mosnctx "mosn.io/mosn/pkg/context"
 	"mosn.io/mosn/pkg/log"
 	"mosn.io/mosn/pkg/protocol"
@@ -159,6 +160,8 @@ func (conn *streamConnection) Read(p []byte) (n int, err error) {
 		}
 	}()
 
+	fmt.Println("读取数据,卡住了====等待中")
+	//======从 [stream.dispatch那跳过来]
 	data, ok := <-conn.bufChan
 
 	// Connection close
@@ -223,32 +226,40 @@ func newClientStreamConnection(ctx context.Context, connection types.ClientConne
 	csc.bw = bufio.NewWriter(csc)
 
 	utils.GoWithRecover(func() {
+		fmt.Println("[stream.go newClientStreamConnection]启动一个协程,用来处理服务端的返回")
 		csc.serve()
 	}, nil)
 
 	return csc
 }
 
+/**
+clientStream处理逻辑
+1.监听requestSent的通道
+2.读取response
+*/
 func (conn *clientStreamConnection) serve() {
 	for {
 		select {
+		//这里是死循环,当请求发送给server的时候
 		case <-conn.requestSent:
 		case <-conn.connClosed:
 			return
 		}
-
+		fmt.Println("[stream.go===clientStreamConnection.serve()]在这里进行监听的,那么问题是这里是啥时候开始监听的呢?在你创建一个clientStream的时候,就开始在这等着你的额返回了")
 		s := conn.stream
 		buffers := httpBuffersByContext(s.ctx)
 		s.response = &buffers.clientResponse
 		request := &buffers.serverRequest
 
+		fmt.Println("读取response--------")
 		// Response.Read() skips reading body if set to true.
 		// Use it for reading HEAD responses.
 		if request.Header.IsHead() {
 			s.response.SkipBody = true
 		}
-
 		// 1. blocking read using fasthttp.Response.Read
+		fmt.Println("[stream.go===clientStreamConnection.serve()]这里读取返回数据,注意是阻塞的,上面当把请求发出去之后,就通知了")
 		err := s.response.Read(conn.br)
 		if err != nil {
 			if s != nil {
@@ -278,7 +289,9 @@ func (conn *clientStreamConnection) serve() {
 			s.connection.streamConnectionEventListener.OnGoAway()
 		}
 
+		//=========处理response
 		if atomic.LoadInt32(&s.readDisableCount) <= 0 {
+			fmt.Println("[stream.go===clientStreamConnection.serve()]处理返回handleResponse")
 			s.handleResponse()
 		}
 	}
@@ -353,6 +366,7 @@ type serverStreamConnection struct {
 
 func newServerStreamConnection(ctx context.Context, connection api.Connection,
 	callbacks types.ServerStreamConnectionEventListener) types.ServerStreamConnection {
+	fmt.Println("[stream.go===newServerStreamConnection]新建一个ServerStreamConnection")
 	ssc := &serverStreamConnection{
 		streamConnection: streamConnection{
 			context:    ctx,
@@ -393,8 +407,13 @@ func (conn *serverStreamConnection) OnEvent(event api.ConnectionEvent) {
 	}
 }
 
+/**
+[建立连接后处理请求]
+*/
 func (conn *serverStreamConnection) serve() {
+	fmt.Println("[stream.go===serverStreamConnection.serve()]新建serverStreamConnection后,就要对这个连接进行处理啦,死循环")
 	for {
+		//1.使用内存复用,读取请求到的数据.
 		// 1. pre alloc stream-level ctx with bufferCtx
 		ctx := conn.contextManager.Get()
 		buffers := httpBuffersByContext(ctx)
@@ -406,6 +425,7 @@ func (conn *serverStreamConnection) serve() {
 			maxRequestBodySize = gcf.(v2.ProxyGeneralExtendConfig).MaxRequestBodySize
 		}
 
+		fmt.Println("[stream.go===serverStreamConnection.serve()]1.阻塞去读取请求body,对于client来说,我就是server嘛")
 		// 2. blocking read using fasthttp.Request.Read
 		err := request.ReadLimitBody(conn.br, maxRequestBodySize)
 		if err == nil {
@@ -473,6 +493,7 @@ func (conn *serverStreamConnection) serve() {
 		conn.mutex.Unlock()
 
 		if atomic.LoadInt32(&s.readDisableCount) <= 0 {
+			fmt.Println("[stream.go===serverStreamConnection.serve()]2.去处理这个请求")
 			s.handleRequest()
 		}
 
@@ -482,7 +503,7 @@ func (conn *serverStreamConnection) serve() {
 		case <-conn.connClosed:
 			return
 		}
-
+		fmt.Println("[stream.go===serverStreamConnection.serve()]3.收到responseDoneChan这个信号了")
 		conn.contextManager.Next()
 	}
 }
@@ -550,6 +571,7 @@ type clientStream struct {
 
 // types.StreamSender
 func (s *clientStream) AppendHeaders(context context.Context, headersIn types.HeaderMap, endStream bool) error {
+	fmt.Println("[stream.go===clientStream.AppendHeaders()]clientStream开始调用1.设置header,注意这里设置了长连接 2.设置data 3.调用endStream()")
 	// clone for retry case
 	headers := headersIn.Clone().(mosnhttp.RequestHeader)
 
@@ -560,7 +582,7 @@ func (s *clientStream) AppendHeaders(context context.Context, headersIn types.He
 	} else {
 		headers.SetMethod(http.MethodPost)
 	}
-
+	//sidecar和上游服务设置为了长连接.....
 	// clear 'Connection:close' header for keepalive connection with upstream
 	if headers.ConnectionClose() {
 		headers.Del("Connection")
@@ -593,7 +615,9 @@ func (s *clientStream) AppendTrailers(context context.Context, trailers types.He
 	return nil
 }
 
+//[ljl核心]======此处去发送数据了
 func (s *clientStream) endStream() {
+	fmt.Println("[stream.go===clientStream.endStream()]******最终调用的地方*********")
 	err := s.doSend()
 
 	if err != nil {
@@ -610,6 +634,7 @@ func (s *clientStream) endStream() {
 	if log.Proxy.GetLogLevel() >= log.DEBUG {
 		log.Proxy.Debugf(s.stream.ctx, "[stream] [http] send client request, requestId = %v", s.stream.id)
 	}
+	fmt.Println("[stream.go===clientStream.endStream()]发送成功,然后把消息发送到管道	s.connection.requestSent <- true,那哪里会接受呢?")
 	s.connection.requestSent <- true
 }
 
@@ -630,15 +655,21 @@ func (s *clientStream) doSend() (err error) {
 	return
 }
 
+/**
+处理返回数据
+*/
 func (s *clientStream) handleResponse() {
+	fmt.Println("[stream.go===clientStream.handleResponse()]处理返回handleResponse")
 	if s.response != nil {
 		header := mosnhttp.ResponseHeader{&s.response.Header, nil}
 
 		statusCode := header.StatusCode()
 		status := strconv.Itoa(statusCode)
 		// inherit upstream's response status
+		//开始造返回数据了
+		//1.header里加x-mosn-status
 		header.Set(types.HeaderStatus, status)
-
+		fmt.Println("[stream.go===clientStream.handleResponse()]header里加x-mosn-status")
 		hasData := true
 		if len(s.response.Body()) == 0 {
 			hasData = false
@@ -647,8 +678,9 @@ func (s *clientStream) handleResponse() {
 		s.connection.mutex.Lock()
 		s.connection.stream = nil
 		s.connection.mutex.Unlock()
-
+		fmt.Println("[stream.go===clientStream.handleResponse()]通知receiver")
 		if hasData {
+			//有数据的话,通知监听者.让他们对header和data数据进行处理
 			s.receiver.OnReceive(s.ctx, header, buffer.NewIoBufferBytes(s.response.Body()), nil)
 		} else {
 			s.receiver.OnReceive(s.ctx, header, nil, nil)
@@ -748,7 +780,7 @@ func (s *serverStream) endStream() {
 		s.response.Header.SetCanonical(HKConnection, HVKeepAlive)
 	}
 	defer s.DestroyStream()
-
+	fmt.Println("=======发送响应了=======")
 	s.doSend()
 	s.responseDoneChan <- true
 
@@ -795,7 +827,7 @@ func (s *serverStream) handleRequest() {
 		if len(s.request.Body()) == 0 {
 			hasData = false
 		}
-
+		fmt.Println("[stream.go===serverStream.handleRequest()]接受到请求数据后,调用s.receiver.OnReceive()")
 		if hasData {
 			s.receiver.OnReceive(s.ctx, s.header, buffer.NewIoBufferBytes(s.request.Body()), nil)
 		} else {

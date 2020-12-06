@@ -244,6 +244,7 @@ func (c *connection) checkUseWriteLoop() bool {
 	return false
 }
 
+//[ljl-接受到请求后,开始死循环,去读取数据和写数据]
 func (c *connection) startRWLoop(lctx context.Context) {
 	c.internalLoopStarted = true
 
@@ -347,6 +348,7 @@ func (c *connection) startReadLoop() {
 		case <-c.readEnabledChan:
 		default:
 			if c.readEnabled {
+				//=======读取数据
 				err := c.doRead()
 				if err != nil {
 					if te, ok := err.(net.Error); ok && te.Timeout() {
@@ -420,6 +422,9 @@ func (c *connection) transferWrite(id uint64) {
 	}
 }
 
+/**
+[核心]读取数据
+*/
 func (c *connection) doRead() (err error) {
 	if c.readBuffer == nil {
 		c.readBuffer = buffer.GetIoBuffer(DefaultBufferReadCapacity)

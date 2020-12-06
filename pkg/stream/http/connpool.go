@@ -19,6 +19,7 @@ package http
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -91,9 +92,11 @@ func (p *connPool) UpdateHost(h types.Host) {
 	p.host.Store(h)
 }
 
+//[ljl核心]创建一个client,并且去调用
 // NewStream Create a client stream and call's by proxy
 func (p *connPool) NewStream(ctx context.Context, receiver types.StreamReceiveListener, listener types.PoolEventListener) {
 	host := p.Host()
+	fmt.Println("[connpool.go===NewStream()]1.获取一个client")
 	c, reason := p.getAvailableClient(ctx)
 
 	if c == nil {
@@ -114,12 +117,16 @@ func (p *connPool) NewStream(ctx context.Context, receiver types.StreamReceiveLi
 
 		streamEncoder := c.client.NewStream(ctx, receiver)
 		streamEncoder.GetStream().AddEventListener(c)
+		fmt.Println("[connpool.go===NewStream()]2.创建一个stream,就可以通知上层,clientStream已经创建好了,你可以调用了")
 		listener.OnReady(streamEncoder, host)
 	}
 
 	return
 }
 
+/**
+获取一个可用的client,这里会用连接池,如果没有,就去创建一个
+*/
 func (p *connPool) getAvailableClient(ctx context.Context) (*activeClient, types.PoolFailureReason) {
 
 	p.clientMux.Lock()
@@ -133,6 +140,7 @@ func (p *connPool) getAvailableClient(ctx context.Context) (*activeClient, types
 		if maxConns == 0 || atomic.LoadUint64(&p.totalClientCount) <= maxConns {
 			// Unlock immediately, allowing concurrent connections
 			p.clientMux.Unlock()
+			//====没有的话,去创建一个
 			ac, reason := newActiveClient(ctx, p)
 			if ac == nil || reason != "" {
 				// To subtract a signed positive constant value c from x, do AddUint64(&x, ^uint64(c-1)).

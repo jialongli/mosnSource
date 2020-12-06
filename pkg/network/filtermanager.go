@@ -74,6 +74,10 @@ func (fm *filterManager) InitializeReadFilters() bool {
 	return true
 }
 
+/**
+1.遍历filter
+2.
+*/
 func (fm *filterManager) onContinueReading(filter *activeReadFilter) {
 	var index int
 	var uf *activeReadFilter
@@ -96,8 +100,10 @@ func (fm *filterManager) onContinueReading(filter *activeReadFilter) {
 			}
 		}
 
+		//拿出connection的buffer数据
 		buf := fm.conn.GetReadBuffer()
 
+		//如果数据不为空,调用filter的onData方法,如果返回的status为stop,那么这个filter没通过.
 		if buf != nil && buf.Len() > 0 {
 			status := uf.filter.OnData(buf)
 
