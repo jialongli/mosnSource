@@ -76,7 +76,7 @@ func (fm *filterManager) InitializeReadFilters() bool {
 
 /**
 1.遍历filter
-2.
+2.如果数据不为空,调用onData
 */
 func (fm *filterManager) onContinueReading(filter *activeReadFilter) {
 	var index int

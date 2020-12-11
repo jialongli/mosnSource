@@ -461,6 +461,7 @@ func (c *connection) doRead() (err error) {
 		cb(uint64(bytesRead))
 	}
 
+	//****核心**** 读取数据的地方
 	c.onRead()
 	c.updateReadBufStats(bytesRead, int64(c.readBuffer.Len()))
 	return

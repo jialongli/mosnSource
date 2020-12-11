@@ -730,6 +730,9 @@ func (ac *activeConnection) OnEvent(event api.ConnectionEvent) {
 	}
 }
 
+/**
+给新的mson进程发送fd.
+*/
 func sendInheritListeners() (net.Conn, error) {
 	//====[ljl]1.获取所有当前监听的listener的文件描述符.注意,监听socket和已连接socket可不一样
 	lf := ListListenersFile()
@@ -790,9 +793,9 @@ func sendInheritListeners() (net.Conn, error) {
 
 /**
 [ljl]获取继承的监听fd,返回的参数
-1.监听的端口列表
-2.当前与old mson连接
-3.异常
+1.创建连接reconfig.sock,如果连接成功,说明已有mosn进程,需要进行连接迁移
+2.创建listen.sock,监听老的mosn传过来的数据
+3.把fd转换为listener对象,返回
 */
 func GetInheritListeners() ([]net.Listener, net.Conn, error) {
 	defer func() {

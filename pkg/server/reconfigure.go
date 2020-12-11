@@ -32,6 +32,13 @@ import (
 	"mosn.io/mosn/pkg/types"
 )
 
+/**
+
+这个类是平滑启动的类
+1.init里面会监听 sighup信号,回调reconfigure()函数
+2.mosn启动后,也会启动reconfigHandler.监听uds端口
+
+*/
 func init() {
 	keeper.AddSignalCallback(syscall.SIGHUP, func() {
 		// reload, fork new mosn
@@ -59,8 +66,8 @@ func startNewMosn() error {
 }
 
 /**
-==========
-*/
+
+ */
 func reconfigure(start bool) {
 	//======[ljl]如果是启动,调用这个逻辑 ,否则那肯定是有新mosn启动,我监听到uds的请求了.
 	if start {
@@ -165,7 +172,9 @@ func StopReconfigureHandler() {
 }
 
 /**
-[ljl]判断当前机器是否已经有一个 mosn进程了.如果有的话,那么需要进行fd迁移,如果没有,那么就是第一次启动,return false
+[ljl]判断当前机器是否已经有一个 mosn进程了.
+怎么判断呢?mosn在启动后,会建立一个监听事件reconfig.sock.
+这里去请求reconfig.sock,如果能建立连接成功,那么就说明此时已经有一个mosn进程了.
 */
 func isReconfigure() bool {
 	var unixConn net.Conn
@@ -176,7 +185,7 @@ func isReconfigure() bool {
 		return false
 	}
 	defer unixConn.Close()
-
+	//在restart函数中,mosn启动最后,会server.ReconfigureHandler(). 会监听reconfig.sock.  当请求时,会
 	uc := unixConn.(*net.UnixConn)
 	buf := make([]byte, 1)
 	n, _ := uc.Read(buf)

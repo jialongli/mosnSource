@@ -18,6 +18,7 @@
 package mosn
 
 import (
+	"fmt"
 	"net"
 	"sync"
 
@@ -89,7 +90,7 @@ func NewMosn(c *v2.MOSNConfig) *Mosn {
 		}
 	}
 
-	//===[ljl]3.初始化 指标,不重要
+	//===[ljl]3.初始化指标监控.使用了mmap,需要深入看下
 	initializeMetrics(c.Metrics)
 
 	m := &Mosn{
@@ -305,6 +306,7 @@ func (m *Mosn) Close() {
 func Start(c *v2.MOSNConfig) {
 	//log.StartLogger.Infof("[mosn] [start] start by config : %+v", c)
 	//[ljl]1.初始化配置,fd迁移.生成一个mosn类,包装了server
+	fmt.Println("[starter.go===服务启动]")
 	Mosn := NewMosn(c)
 	//[ljl]2.启动mosn
 	Mosn.Start()
