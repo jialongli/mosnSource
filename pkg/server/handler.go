@@ -762,6 +762,7 @@ func sendInheritListeners() (net.Conn, error) {
 
 	var unixConn net.Conn
 	var err error
+	fmt.Println("[优雅重启,老进程]尝试建立连接和listen.sock,每1s尝试一次,一共10次机会=============")
 	// retry 10 time
 	for i := 0; i < 10; i++ {
 		unixConn, err = net.DialTimeout("unix", types.TransferListenDomainSocket, 1*time.Second)
@@ -771,6 +772,7 @@ func sendInheritListeners() (net.Conn, error) {
 		time.Sleep(1 * time.Second)
 	}
 	if err != nil {
+		fmt.Println("[优雅重启,老进程]尝试建立连接和listen.sock,失败~~~=============")
 		log.DefaultLogger.Errorf("[server] sendInheritListeners Dial unix failed %v", err)
 		return nil, err
 	}
@@ -778,6 +780,7 @@ func sendInheritListeners() (net.Conn, error) {
 	uc := unixConn.(*net.UnixConn)
 	buf := make([]byte, 1)
 	rights := syscall.UnixRights(fds...)
+	fmt.Println("[优雅重启,老进程]和listen.sock建联成功,发送fd消息=============")
 	n, oobn, err := uc.WriteMsgUnix(buf, rights, nil)
 	if err != nil {
 		log.DefaultLogger.Errorf("[server] WriteMsgUnix: %v", err)
