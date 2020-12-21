@@ -18,6 +18,7 @@
 package server
 
 import (
+	"fmt"
 	"os"
 	"runtime/debug"
 	"syscall"
@@ -91,27 +92,36 @@ func reconfigure(start bool) {
 	var n int
 	var buf [1]byte
 	//====[ljl]重要逻辑,发送要监听的文件描述符==========
+	fmt.Println("[优雅重启,老进程]发送正在监听的fd列表=============")
 	if listenSockConn, err = sendInheritListeners(); err != nil {
 		return
 	}
 
 	// Wait new mosn parse configuration
 	listenSockConn.SetReadDeadline(time.Now().Add(10 * time.Minute))
+	fmt.Println("[优雅重启,老进程]发送正在监听的fd列表结束.等待新mosn发送启动成功的通知,我好去关闭accept=============")
 	n, err = listenSockConn.Read(buf[:])
+	fmt.Println("[优雅重启,老进程]发送正在监听的fd列表结束.等待新mosn发送启动成功的通知,我好去关闭accept,等待中=============")
 	if n != 1 {
+		fmt.Println("[优雅重启,老进程]发送正在监听的fd列表结束.等待新mosn发送启动成功的通知,我好去关闭accept,n!=1,返回失败=============")
 		log.DefaultLogger.Alertf(types.ErrorKeyReconfigure, "new mosn start failed")
 		return
 	}
 
+	fmt.Println("[优雅重启,老进程]stopService,start=============")
 	// stop other services
 	store.StopService()
+	fmt.Println("[优雅重启,老进程]stopService,send=============")
 
+	fmt.Println("[优雅重启,老进程]sleep 3s =============")
 	// Wait for new mosn start
 	time.Sleep(3 * time.Second)
 
+	fmt.Println("[优雅重启,老进程]停止accept =============")
 	// Stop accepting requests
 	StopAccept()
 
+	fmt.Println("[优雅重启,老进程]fsdfjasldfj =============")
 	// Wait for all connections to be finished
 	WaitConnectionsDone(GracefulTimeout)
 
@@ -130,9 +140,8 @@ func ReconfigureHandler() {
 		}
 	}()
 	time.Sleep(time.Second)
-
+	fmt.Println("启动成功后,删除reconfig.sock")
 	syscall.Unlink(types.ReconfigureDomainSocket)
-
 	//=====1.mosn启动后,来监听reconfig这个uds
 	l, err := net.Listen("unix", types.ReconfigureDomainSocket)
 	if err != nil {
@@ -144,9 +153,11 @@ func ReconfigureHandler() {
 	log.DefaultLogger.Infof("[server] [reconfigure] reconfigureHandler start")
 
 	ul := l.(*net.UnixListener)
+	fmt.Println("启动成功后,监听reconfig.sock,阻塞中=============")
 	for {
 		//=======2.当accept到连接后.
 		uc, err := ul.AcceptUnix()
+		fmt.Println("!!!!!!监听reconfig.sock,收到请求,有新的mosn进程启动了=============")
 		if err != nil {
 			log.DefaultLogger.Errorf("[server] [reconfigure] reconfigureHandler Accept error :%v", err)
 			return
@@ -155,6 +166,7 @@ func ReconfigureHandler() {
 
 		//3.写入'0'数据作为回应
 		_, err = uc.Write([]byte{0})
+		fmt.Println("写回一个'0'作为回应=============")
 		if err != nil {
 			log.DefaultLogger.Errorf("[server] [reconfigure] reconfigureHandler %v", err)
 			continue
