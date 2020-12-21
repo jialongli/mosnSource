@@ -68,7 +68,8 @@ func NewMosn(c *v2.MOSNConfig) *Mosn {
 	store.SetMosnConfig(c)
 
 	//get inherit fds
-	//--------1.重要,如果是第一次启动,那么返回的是nil,nil,nil  如果需要无损升级,那么返回 继承的listener,监听的socket连接,异常
+	//1.如果是第一次启动,那么返回的是nil,nil,nil;
+	//2.无损迁移的话,返回的是需要监听的fd,以及与老mosn的连接(listen.sock)一会启动成功后,还得告诉老的mosn,老mson才好结束accept,关闭进程,否则10分钟后,认定为超时
 	inheritListeners, listenSockConn, err := server.GetInheritListeners()
 	if err != nil {
 		log.StartLogger.Fatalf("[mosn] [NewMosn] getInheritListeners failed, exit")
@@ -214,7 +215,7 @@ func (m *Mosn) beforeStart() {
 		}
 
 		m.listenSockConn.Close()
-
+		fmt.Println("关闭oldmosn的连接")
 		// transfer old mosn connections
 		utils.GoWithRecover(func() {
 			network.TransferServer(m.servers[0].Handler())

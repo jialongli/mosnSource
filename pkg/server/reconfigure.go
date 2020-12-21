@@ -66,8 +66,11 @@ func startNewMosn() error {
 }
 
 /**
-
- */
+平滑迁移流程(老mosn)
+1.通过listen.sock,给新mosn发送fd列表
+2.监听新mosn的回复.回复0,就代表新启动成功了
+3.停止server
+*/
 func reconfigure(start bool) {
 	//======[ljl]如果是启动,调用这个逻辑 ,否则那肯定是有新mosn启动,我监听到uds的请求了.
 	if start {
@@ -153,16 +156,15 @@ func ReconfigureHandler() {
 		}
 		log.DefaultLogger.Infof("[server] [reconfigure] reconfigureHandler Accept")
 
-		//3.写入'0'数据作为回应
+		//3.写入'0'数据作为回应.告知新的mosn,我已经准备好开始平滑迁移了
 		_, err = uc.Write([]byte{0})
 		if err != nil {
 			log.DefaultLogger.Errorf("[server] [reconfigure] reconfigureHandler %v", err)
 			continue
 		}
-		//4.可以关闭连接了
 		uc.Close()
 
-		//5.
+		//4.开始干
 		reconfigure(false)
 	}
 }

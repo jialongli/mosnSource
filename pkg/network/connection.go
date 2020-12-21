@@ -322,6 +322,7 @@ func (c *connection) startReadLoop() {
 
 		select {
 		case <-c.stopChan:
+			fmt.Println("收到信息,已经停止")
 			if transferTime.IsZero() {
 				if c.transferCallbacks != nil && c.transferCallbacks() {
 					randTime := time.Duration(rand.Intn(int(TransferTimeout.Nanoseconds())))
